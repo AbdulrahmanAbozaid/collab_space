@@ -24,7 +24,6 @@ export default function Header() {
       top={0}
       left={0}
       zIndex={"99"}
-      
     >
       <Container maxW={"container.xl"}>
         <Flex align="center" justify="space-between" wrap="nowrap">

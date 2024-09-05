@@ -1,17 +1,21 @@
-import express, { Application, Request, Response } from 'express';
-import dotenv from 'dotenv';
+import app from "./config/app";
+import { config } from "dotenv";
+import connection from "./config/database";
 
-dotenv.config();
+config();
 
-const app: Application = express();
-const PORT = process.env.PORT || 3000;
+// eslint-disable-next-line no-undef
+const port = process.env.PORT || 3000;
 
-app.use(express.json());
+process.on("uncaughtException", (error: Error) => {
+  console.log("We handle it there", error);
 
-app.get('/', (req: Request, res: Response) => {
-  res.send('CollabSpace Backend is running!');
+  //handle(error)
+  // if (untrusted): process.exit(1)
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+await connection();
+
+app.listen(port, () => {
+  console.log(`[server]: Server is running on port ${port}`);
 });

@@ -5,7 +5,7 @@ import DocumentHeader from "../../components/documents/DocumentHeader";
 import VoiceCallInterface from "../../components/documents/VoiceCall";
 import { Box, Center, Button, IconButton } from "@chakra-ui/react";
 import { MinusIcon } from "@chakra-ui/icons";
-import { jsPDF } from "jspdf";  
+import html2pdf from 'html2pdf.js';
 const DocumentEditorPage: React.FC = () => {
   const [isCallActive, setIsCallActive] = useState(true);
   const [isCallVisible, setIsCallVisible] = useState(true);
@@ -54,7 +54,7 @@ const DocumentEditorPage: React.FC = () => {
   const handleFocusEditor = (index: number) => {
     // Ensure the quill instance is focused correctly
     if (quillInstances.current[index]) {
-        quillInstances.current[index].focus(); // Delay to ensure proper focus
+      quillInstances.current[index].focus(); // Delay to ensure proper focus
     }
   };
 
@@ -152,30 +152,115 @@ const DocumentEditorPage: React.FC = () => {
       printWindow.document.close();
     }
   };
-  const handleExportPDF = () => {
-    const doc = new jsPDF();
-    
-    quillInstances.current.forEach((quillInstance, index) => {
-      if (index > 0) {
-        doc.addPage();
-      }
-      
-      const content = quillInstance.root.innerHTML;
-      
-      doc.html(content, {
-        callback: function (doc: { save: (arg0: string) => void; }) {
-          if (index === quillInstances.current.length - 1) {
-            doc.save('document.pdf');
-          }
-        },
-        x: 10,
-        y: 10,
-        width: 190,
-        windowWidth: 794
-      });
-    });
-  };
 
+  // const handleExportPDF = async () => {
+  //   try {
+  //     // Create a new PDF document
+  //     const mergedPdf = await PDFDocument.create();
+
+  //     for (const quill of quillInstances.current) {
+  //       const delta = quill.getContents();
+  //       const pdfBlob = await pdfExporter.generatePdf(delta);
+  //       const pdfBytes = await pdfBlob.arrayBuffer();
+
+  //       // Load the PDF bytes
+  //       const pdf = await PDFDocument.load(pdfBytes);
+
+  //       // Copy all pages from the current PDF to the merged PDF
+  //       const copiedPages = await mergedPdf.copyPages(
+  //         pdf,
+  //         pdf.getPageIndices()
+  //       );
+  //       copiedPages.forEach((page) => mergedPdf.addPage(page));
+  //     }
+
+  //     const pdfBytes = await mergedPdf.save();
+  //     const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
+  //     saveAs(pdfBlob, "document-export.pdf");
+  //   } catch (error) {
+  //     console.error("Error exporting PDF:", error);
+  //     // Handle error (e.g., show an error message to the user)
+  //   }
+  // };
+
+  const handleExportPDF = async () => {
+    try {
+      // Create a container for all pages
+      const container = document.createElement('div');
+
+      // Add Quill styles and additional heading styles
+      const styleSheet = document.createElement('style');
+      styleSheet.textContent = `
+        ${Quill.import('css')}
+        .ql-editor {
+          padding: 0;
+        }
+        .ql-editor h1 {
+          font-size: 2em;
+          font-weight: bold;
+          margin-top: 0.67em;
+          margin-bottom: 0.67em;
+        }
+        .ql-editor h2 {
+          font-size: 1.5em;
+          font-weight: bold;
+          margin-top: 0.83em;
+          margin-bottom: 0.83em;
+        }
+        .ql-editor h3 {
+          font-size: 1.17em;
+          font-weight: bold;
+          margin-top: 1em;
+          margin-bottom: 1em;
+        }
+        .ql-editor h4 {
+          font-size: 1em;
+          font-weight: bold;
+          margin-top: 1.33em;
+          margin-bottom: 1.33em;
+        }
+        .ql-editor h5 {
+          font-size: 0.83em;
+          font-weight: bold;
+          margin-top: 1.67em;
+          margin-bottom: 1.67em;
+        }
+        .ql-editor h6 {
+          font-size: 0.67em;
+          font-weight: bold;
+          margin-top: 2.33em;
+          margin-bottom: 2.33em;
+        }
+      `;
+      container.appendChild(styleSheet);
+
+      // Add content from each Quill instance
+      quillInstances.current.forEach((quill, index) => {
+        const pageDiv = document.createElement('div');
+        pageDiv.innerHTML = quill.root.innerHTML;
+        pageDiv.className = 'ql-editor';
+        pageDiv.style.pageBreakAfter = 'always';
+        pageDiv.style.minHeight = '11in';
+        pageDiv.style.padding = '1in';
+        pageDiv.style.boxSizing = 'border-box';
+        container.appendChild(pageDiv);
+      });
+
+      // Use html2pdf to generate PDF
+      const opt = {
+        margin: 0,
+        filename: 'document-export.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+
+      html2pdf().from(container).set(opt).save();
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+      // Handle error (e.g., show an error message to the user)
+    }
+  };
   return (
     <Box bg="gray.50" minHeight="100vh" p={4}>
       <DocumentHeader

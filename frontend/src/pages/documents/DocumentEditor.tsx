@@ -5,7 +5,7 @@ import DocumentHeader from "../../components/documents/DocumentHeader";
 import VoiceCallInterface from "../../components/documents/VoiceCall";
 import { Box, Center, Button, IconButton } from "@chakra-ui/react";
 import { MinusIcon } from "@chakra-ui/icons";
-
+import { jsPDF } from "jspdf";  
 const DocumentEditorPage: React.FC = () => {
   const [isCallActive, setIsCallActive] = useState(true);
   const [isCallVisible, setIsCallVisible] = useState(true);
@@ -152,6 +152,29 @@ const DocumentEditorPage: React.FC = () => {
       printWindow.document.close();
     }
   };
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    
+    quillInstances.current.forEach((quillInstance, index) => {
+      if (index > 0) {
+        doc.addPage();
+      }
+      
+      const content = quillInstance.root.innerHTML;
+      
+      doc.html(content, {
+        callback: function (doc: { save: (arg0: string) => void; }) {
+          if (index === quillInstances.current.length - 1) {
+            doc.save('document.pdf');
+          }
+        },
+        x: 10,
+        y: 10,
+        width: 190,
+        windowWidth: 794
+      });
+    });
+  };
 
   return (
     <Box bg="gray.50" minHeight="100vh" p={4}>
@@ -215,6 +238,9 @@ const DocumentEditorPage: React.FC = () => {
           </Button>
           <Button mt={4} ml={4} colorScheme="blue" onClick={handlePrintContent}>
             Print Content
+          </Button>
+          <Button mt={4} ml={4} colorScheme="green" onClick={handleExportPDF}>
+            Export as PDF
           </Button>
         </Box>
       </Center>

@@ -29,7 +29,7 @@ export const AppRoutes = () => {
     },
     {
       path: "/collab",
-      element: <DashboardLayout />,  // Use the new Dashboard layout
+      element: <DashboardLayout />,
       children: [
         { path: "", element: <Dashboard /> },
         { path: "teams", element: <Teams /> },

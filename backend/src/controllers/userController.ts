@@ -38,11 +38,11 @@ export const getUser = catchAsync(
 
 // Get the current user
 export const getMe = (
-  req: Request & { user: any },
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  req.params.id = req.user.id;
+  req.params.id = (req as any).user.id;
   next();
 };
 

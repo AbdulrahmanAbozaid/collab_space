@@ -45,9 +45,9 @@ const DocumentEditorPage: React.FC = () => {
   const handleRemovePage = (index: number) => {
     if (index > 0) {
       setPageCount((prevCount) => {
-        pageRefs.current.splice(index, 1); // Remove the page ref
-        quillInstances.current.splice(index, 1); // Remove the quill instance
-        return prevCount - 1; // Decrease the page count
+        pageRefs.current.splice(index, 1); 
+        quillInstances.current.splice(index, 1);
+        return prevCount - 1;
       });
     }
   };

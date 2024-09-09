@@ -20,7 +20,7 @@ const VoiceCallInterface: React.FC<VoiceCallInterfaceProps> = ({
   onMute,
   onEndCall,
 }) => {
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true);
 
   // Handlers to minimize and restore the call interface
   const handleMinimize = () => setIsMinimized(true);

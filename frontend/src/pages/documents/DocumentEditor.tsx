@@ -3,15 +3,157 @@ import Quill from "quill";
 import "quill/dist/quill.snow.css";
 import DocumentHeader from "../../components/documents/DocumentHeader";
 import VoiceCallInterface from "../../components/documents/VoiceCall";
-import { Box, Center, Button, IconButton } from "@chakra-ui/react";
+import { Box, Center, Button, IconButton, HStack } from "@chakra-ui/react";
 import { MinusIcon } from "@chakra-ui/icons";
-import html2pdf from 'html2pdf.js';
+// @ts-ignore
+import html2pdf from "html2pdf.js";
+import { useParams } from "react-router-dom";
+import io from "socket.io-client";
+
 const DocumentEditorPage: React.FC = () => {
   const [isCallActive, setIsCallActive] = useState(true);
   const [isCallVisible, setIsCallVisible] = useState(true);
   const [pageCount, setPageCount] = useState(1);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const quillInstances = useRef<Quill[]>([]);
+  const { id } = useParams<{ id: string }>(); // For link sharing, using document ID
+
+  const socketRef = useRef<any>(null);
+  const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({});
+  const dataChannels = useRef<{ [key: string]: RTCDataChannel }>({});
+  const localStream = useRef<MediaStream | null>(null); // Stream for voice call
+
+  const ICE_CONFIG = {
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  };
+
+  useEffect(() => {
+    socketRef.current = io("http://localhost:3000/"); // Replace with your signaling server
+
+    // WebRTC event listeners for signaling
+    socketRef.current.on("offer", async (message: any) => {
+      const peerConnection = createPeerConnection(message.from);
+      await peerConnection.setRemoteDescription(
+        new RTCSessionDescription(message.offer)
+      );
+
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+
+      socketRef.current.emit("answer", { answer, to: message.from });
+    });
+
+    socketRef.current.on("answer", async (message: any) => {
+      const peerConnection = peerConnections.current[message.from];
+      await peerConnection.setRemoteDescription(
+        new RTCSessionDescription(message.answer)
+      );
+    });
+
+    socketRef.current.on("ice-candidate", (message: any) => {
+      const peerConnection = peerConnections.current[message.from];
+      peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
+    });
+
+    return () => {
+      Object.values(peerConnections.current).forEach((peerConnection) =>
+        peerConnection.close()
+      );
+      socketRef.current.disconnect();
+    };
+  }, []);
+
+  // Function to set up peer connections for voice call and data channels
+  const createPeerConnection = (peerId: string) => {
+    const peerConnection = new RTCPeerConnection(ICE_CONFIG);
+
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        socketRef.current.emit("ice-candidate", {
+          candidate: event.candidate,
+          to: peerId,
+        });
+      }
+    };
+
+    peerConnection.ontrack = (event) => {
+      // Handling the remote stream
+      const remoteVideo = document.getElementById(`remote-video-${peerId}`);
+      if (remoteVideo) {
+        (remoteVideo as HTMLVideoElement).srcObject = event.streams[0];
+      }
+    };
+
+    if (localStream.current) {
+      localStream.current.getTracks().forEach((track) => {
+        peerConnection.addTrack(track, localStream.current!);
+      });
+    }
+
+    const dataChannel = peerConnection.createDataChannel("document");
+
+    dataChannel.onmessage = (event) => {
+      const delta = JSON.parse(event.data);
+      quillInstances.current.forEach((quillInstance) => {
+        quillInstance.updateContents(delta); // Apply the changes
+      });
+    };
+
+    dataChannels.current[peerId] = dataChannel;
+    peerConnections.current[peerId] = peerConnection;
+
+    return peerConnection;
+  };
+
+  // Function to handle document changes and broadcast them via WebRTC data channels
+  const handleDocumentChange = (delta: any, source: string) => {
+    if (source === "user") {
+      const change = JSON.stringify(delta);
+      Object.values(dataChannels.current).forEach((dataChannel) => {
+        if (dataChannel.readyState === "open") {
+          dataChannel.send(change); // Broadcast changes to all collaborators
+        }
+      });
+    }
+  };
+
+  const handleAddPeer = async (peerId: string) => {
+    const peerConnection = createPeerConnection(peerId);
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    socketRef.current.emit("offer", { offer, to: peerId });
+  };
+
+  const startCall = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false,
+      });
+      localStream.current = stream;
+
+      // You can now call other participants
+    } catch (err) {
+      console.error("Failed to access media devices", err);
+    }
+  };
+
+  useEffect(() => {
+    // Auto-start the voice call when the page loads
+    startCall();
+  }, []);
+
+  const handleEndCall = () => {
+    setIsCallActive(false);
+    setIsCallVisible(false);
+
+    if (localStream.current) {
+      localStream.current.getTracks().forEach((track) => track.stop());
+      localStream.current = null;
+    }
+  };
 
   const mockCollaborators = [
     { name: "Alex", status: "editing" },
@@ -33,11 +175,6 @@ const DocumentEditorPage: React.FC = () => {
     );
   };
 
-  const handleEndCall = () => {
-    setIsCallActive(false);
-    setIsCallVisible(false);
-  };
-
   const handleToggleCall = () => {
     setIsCallVisible(!isCallVisible);
   };
@@ -45,7 +182,7 @@ const DocumentEditorPage: React.FC = () => {
   const handleRemovePage = (index: number) => {
     if (index > 0) {
       setPageCount((prevCount) => {
-        pageRefs.current.splice(index, 1); 
+        pageRefs.current.splice(index, 1);
         quillInstances.current.splice(index, 1);
         return prevCount - 1;
       });
@@ -123,7 +260,7 @@ const DocumentEditorPage: React.FC = () => {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Print Content</title>
+            <title>Document</title>
             <link rel="stylesheet" href="https://cdn.quilljs.com/1.3.6/quill.snow.css">
             <style>
               body {
@@ -153,45 +290,15 @@ const DocumentEditorPage: React.FC = () => {
     }
   };
 
-  // const handleExportPDF = async () => {
-  //   try {
-  //     // Create a new PDF document
-  //     const mergedPdf = await PDFDocument.create();
-
-  //     for (const quill of quillInstances.current) {
-  //       const delta = quill.getContents();
-  //       const pdfBlob = await pdfExporter.generatePdf(delta);
-  //       const pdfBytes = await pdfBlob.arrayBuffer();
-
-  //       // Load the PDF bytes
-  //       const pdf = await PDFDocument.load(pdfBytes);
-
-  //       // Copy all pages from the current PDF to the merged PDF
-  //       const copiedPages = await mergedPdf.copyPages(
-  //         pdf,
-  //         pdf.getPageIndices()
-  //       );
-  //       copiedPages.forEach((page) => mergedPdf.addPage(page));
-  //     }
-
-  //     const pdfBytes = await mergedPdf.save();
-  //     const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
-  //     saveAs(pdfBlob, "document-export.pdf");
-  //   } catch (error) {
-  //     console.error("Error exporting PDF:", error);
-  //     // Handle error (e.g., show an error message to the user)
-  //   }
-  // };
-
   const handleExportPDF = async () => {
     try {
       // Create a container for all pages
-      const container = document.createElement('div');
+      const container = document.createElement("div");
 
       // Add Quill styles and additional heading styles
-      const styleSheet = document.createElement('style');
+      const styleSheet = document.createElement("style");
       styleSheet.textContent = `
-        ${Quill.import('css')}
+        ${Quill.import("css")}
         .ql-editor {
           padding: 0;
         }
@@ -235,24 +342,24 @@ const DocumentEditorPage: React.FC = () => {
       container.appendChild(styleSheet);
 
       // Add content from each Quill instance
-      quillInstances.current.forEach((quill, index) => {
-        const pageDiv = document.createElement('div');
+      quillInstances.current.forEach((quill, _) => {
+        const pageDiv = document.createElement("div");
         pageDiv.innerHTML = quill.root.innerHTML;
-        pageDiv.className = 'ql-editor';
-        pageDiv.style.pageBreakAfter = 'always';
-        pageDiv.style.minHeight = '11in';
-        pageDiv.style.padding = '1in';
-        pageDiv.style.boxSizing = 'border-box';
+        pageDiv.className = "ql-editor";
+        pageDiv.style.pageBreakAfter = "always";
+        pageDiv.style.minHeight = "11in";
+        pageDiv.style.padding = "1in";
+        pageDiv.style.boxSizing = "border-box";
         container.appendChild(pageDiv);
       });
 
       // Use html2pdf to generate PDF
       const opt = {
         margin: 0,
-        filename: 'document-export.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
+        filename: "document-export.pdf",
+        image: { type: "jpeg", quality: 0.98 },
         html2canvas: { scale: 2 },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
       };
 
       html2pdf().from(container).set(opt).save();
@@ -261,6 +368,7 @@ const DocumentEditorPage: React.FC = () => {
       // Handle error (e.g., show an error message to the user)
     }
   };
+
   return (
     <Box bg="gray.50" minHeight="100vh" p={4}>
       <DocumentHeader
@@ -277,13 +385,13 @@ const DocumentEditorPage: React.FC = () => {
         />
       )}
       <Center>
-        <Box width="11.5in" p={8} mt={4}>
+        <Box width="13.5in" p={8} mt={4}>
           {Array.from({ length: pageCount }).map((_, index) => (
             <Box
               key={index}
               bg="white"
               shadow="md"
-              p={8}
+              
               borderRadius="md"
               border="1px solid #e0e0e0"
               position="relative"

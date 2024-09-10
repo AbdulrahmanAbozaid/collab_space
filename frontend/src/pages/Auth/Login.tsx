@@ -21,14 +21,18 @@ export interface LoginFormInputs {
 import { SubmitHandler, useForm } from "react-hook-form";
 import { FaEnvelope, FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 import SocialAuth from "../../components/SocialAuth";
+import { useAppDispatch } from "../../redux/hooks";
+import { loginUser } from "../../redux/auth/authSlice";
 const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const { handleSubmit, register } = useForm<LoginFormInputs>();
   const togglePassword = () => {
     setShowPassword(!showPassword);
   };
+  const dispatch = useAppDispatch();
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
     console.log(data);
+    await dispatch(loginUser(data));
   };
   return (
     <Box

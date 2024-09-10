@@ -17,6 +17,8 @@ import React, { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { FaEnvelope, FaEye, FaEyeSlash, FaLock, FaUser } from "react-icons/fa";
 import SocialAuth from "../../components/SocialAuth";
+import { registerUser } from "../../redux/auth/authSlice";
+import { useAppDispatch } from "../../redux/hooks";
 
 export interface RegisterFormInputs {
   username: string;
@@ -29,7 +31,7 @@ const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] =
     useState<boolean>(false);
-
+  const dispatch = useAppDispatch();
   const {
     handleSubmit,
     register,
@@ -46,8 +48,12 @@ const Register: React.FC = () => {
   };
 
   const onSubmit: SubmitHandler<RegisterFormInputs> = async (data) => {
-    delete data.confirmPassword;
     console.log(data);
+    await dispatch(registerUser(data))
+      .unwrap()
+      .then((res) => {
+        console.log(res);
+      });
   };
 
   const password = watch("password");

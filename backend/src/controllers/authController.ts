@@ -14,7 +14,6 @@ const signToken = (id: string): string => {
   });
 };
 
-// Helper function to send JWT as response
 const createSendToken = (user: any, statusCode: number, res: Response) => {
   const token = signToken(user._id);
 
@@ -43,18 +42,14 @@ export const register = async (
   next: NextFunction
 ) => {
   try {
-    const { username, email, password, passwordConfirm } = req.body;
-
-    if (password !== passwordConfirm) {
-      return next(new AppError("Passwords do not match", 400));
-    }
+    const { username, email, password } = req.body;
 
     const newUser = await User.create({
       username,
       email,
       password,
     });
-
+    console.log(newUser);
     createSendToken(newUser, 201, res);
   } catch (err) {
     return next(new AppError("Error registering user", 500));
@@ -68,7 +63,7 @@ export const login = async (
   next: NextFunction
 ) => {
   const { email, password } = req.body;
-
+  delete req.body.password;
   if (!email || !password) {
     return next(new AppError("Please provide email and password", 400));
   }
@@ -82,7 +77,7 @@ export const login = async (
   if (!user || !(await user.comparePassword(password))) {
     return next(new AppError("Incorrect email or password", 401));
   }
-
+  console.log("ttttttttttttttt");
   createSendToken(user, 200, res);
 };
 

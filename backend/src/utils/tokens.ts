@@ -5,7 +5,7 @@ export const generateToken = async (payload: object, duration: number | string =
   if (!payload) {
     throw new Error("Token is required");
   }
-  const token = jwt.sign(payload, process.env.TOKEN_SECRET as string, {
+  const token = jwt.sign(payload, process.env.JWT_SECRET as string, {
     expiresIn: duration || process.env.TOKEN_DEV,
   });
 
@@ -14,7 +14,7 @@ export const generateToken = async (payload: object, duration: number | string =
 
 export const verifyToken = async (token: string) => {
   try {
-    const data: any = jwt.verify(token, process.env.TOKEN_SECRET as jwt.Secret);
+    const data: any = jwt.verify(token, process.env.JWT_SECRET as jwt.Secret);
     return { data };
   } catch (error: any) {
     return { error: new AppError(error.message, 400) };

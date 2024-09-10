@@ -11,14 +11,25 @@ import {
   InputRightElement,
   Link,
   Text,
+  useToast,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalCloseButton,
+  ModalBody,
+  ModalFooter,
+  Spinner,
 } from "@chakra-ui/react";
-import { Link as ReactLink } from "react-router-dom";
+import { Link as ReactLink, useNavigate } from "react-router-dom";
 import React, { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { FaEnvelope, FaEye, FaEyeSlash, FaLock, FaUser } from "react-icons/fa";
+import { useAppDispatch, useAppSelector } from "../../redux/hooks";
+import { signupUser, verifyEmail } from "../../redux/auth/Thunks";
 import SocialAuth from "../../components/SocialAuth";
-import { registerUser } from "../../redux/auth/authSlice";
-import { useAppDispatch } from "../../redux/hooks";
+import { RegisterResponse } from "../../redux/auth/authTypes";
+import { RootState } from "../../redux/store";
 
 export interface RegisterFormInputs {
   username: string;
@@ -31,7 +42,15 @@ const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] =
     useState<boolean>(false);
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState<boolean>(false);
+  const [otp, setOtp] = useState<string>();
+  const [userEmail, setUserEmail] = useState<string>("");
+
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { isLoading } = useAppSelector((state: RootState) => state.auth);
+
   const {
     handleSubmit,
     register,
@@ -47,13 +66,77 @@ const Register: React.FC = () => {
     setShowConfirmPassword(!showConfirmPassword);
   };
 
+  // Handle form submission for registration
   const onSubmit: SubmitHandler<RegisterFormInputs> = async (data) => {
-    console.log(data);
-    await dispatch(registerUser(data))
-      .unwrap()
-      .then((res) => {
-        console.log(res);
+    try {
+      const signupData = {
+        username: data.username,
+        email: data.email,
+        password: data.password,
+      };
+
+      await dispatch(signupUser(signupData))
+        .unwrap()
+        .then((result: any | RegisterResponse) => {
+          console.log(result);
+          if (result.success) {
+            setUserEmail(data.email);
+            toast({
+              title: "Registration successful.",
+              description: result.message,
+              status: "success",
+              duration: 5000,
+              isClosable: true,
+            });
+            // Show OTP modal to verify email
+            setIsOtpModalOpen(true);
+          }
+        });
+    } catch (error: any) {
+      toast({
+        title: "Registration failed.",
+        description: error.message || "Something went wrong.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
       });
+    }
+  };
+
+  // Handle OTP verification
+  const verifyOtp = async () => {
+    try {
+      dispatch(
+        verifyEmail({
+          otp: otp as string,
+          email: userEmail,
+        })
+      )
+        .unwrap()
+        .then((response) => {
+          if ((response as any).success) {
+            toast({
+              title: "Email Verified.",
+              description: (response as any).message,
+              status: "success",
+              duration: 5000,
+              isClosable: true,
+            });
+            setIsOtpModalOpen(false);
+            navigate("/login"); // Redirect to login page
+          }
+        });
+    } catch (error: any) {
+      console.log(error);
+
+      toast({
+        title: "OTP Verification failed.",
+        description: error.response?.data?.message || "Invalid OTP code.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
   };
 
   const password = watch("password");
@@ -77,6 +160,7 @@ const Register: React.FC = () => {
       </Box>
       <Box mt={5} textAlign="left">
         <form onSubmit={handleSubmit(onSubmit)}>
+          {/* Username Field */}
           <FormControl mb={4} isInvalid={!!errors.username}>
             <FormLabel>Username</FormLabel>
             <InputGroup>
@@ -86,7 +170,6 @@ const Register: React.FC = () => {
               <Input
                 rounded={"lg"}
                 type="text"
-                variant="main"
                 placeholder="Enter your username"
                 {...register("username", { required: "Username is required" })}
               />
@@ -96,6 +179,7 @@ const Register: React.FC = () => {
             )}
           </FormControl>
 
+          {/* Email Field */}
           <FormControl mb={4} isInvalid={!!errors.email}>
             <FormLabel>Email</FormLabel>
             <InputGroup>
@@ -105,7 +189,6 @@ const Register: React.FC = () => {
               <Input
                 rounded={"lg"}
                 type="email"
-                variant="main"
                 placeholder="Enter your email"
                 {...register("email", { required: "Email is required" })}
               />
@@ -115,7 +198,8 @@ const Register: React.FC = () => {
             )}
           </FormControl>
 
-          <FormControl mb={4} borderRadius={"lg"} isInvalid={!!errors.password}>
+          {/* Password Field */}
+          <FormControl mb={4} isInvalid={!!errors.password}>
             <FormLabel>Password</FormLabel>
             <InputGroup>
               <InputLeftElement pointerEvents="none">
@@ -125,7 +209,6 @@ const Register: React.FC = () => {
                 rounded={"lg"}
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
-                variant="main"
                 {...register("password", { required: "Password is required" })}
               />
               <InputRightElement>
@@ -133,15 +216,7 @@ const Register: React.FC = () => {
                   onClick={togglePassword}
                   bg={"transparent"}
                   aria-label="toggle password"
-                  fill={"gray.200"}
-                  _hover={{ bg: "transparent" }}
-                  icon={
-                    showPassword ? (
-                      <FaEye fill={"#000"} size={16} />
-                    ) : (
-                      <FaEyeSlash fill={"#000"} size={16} />
-                    )
-                  }
+                  icon={showPassword ? <FaEye /> : <FaEyeSlash />}
                 />
               </InputRightElement>
             </InputGroup>
@@ -150,11 +225,8 @@ const Register: React.FC = () => {
             )}
           </FormControl>
 
-          <FormControl
-            mb={4}
-            borderRadius={"lg"}
-            isInvalid={!!errors.confirmPassword}
-          >
+          {/* Confirm Password Field */}
+          <FormControl mb={4} isInvalid={!!errors.confirmPassword}>
             <FormLabel>Confirm Password</FormLabel>
             <InputGroup>
               <InputLeftElement pointerEvents="none">
@@ -164,7 +236,6 @@ const Register: React.FC = () => {
                 rounded={"lg"}
                 type={showConfirmPassword ? "text" : "password"}
                 placeholder="Confirm your password"
-                variant="main"
                 {...register("confirmPassword", {
                   required: "Please confirm your password",
                   validate: (value) =>
@@ -176,15 +247,7 @@ const Register: React.FC = () => {
                   onClick={toggleConfirmPassword}
                   bg={"transparent"}
                   aria-label="toggle confirm password"
-                  fill={"gray.200"}
-                  _hover={{ bg: "transparent" }}
-                  icon={
-                    showConfirmPassword ? (
-                      <FaEye fill={"#000"} size={16} />
-                    ) : (
-                      <FaEyeSlash fill={"#000"} size={16} />
-                    )
-                  }
+                  icon={showConfirmPassword ? <FaEye /> : <FaEyeSlash />}
                 />
               </InputRightElement>
             </InputGroup>
@@ -193,27 +256,56 @@ const Register: React.FC = () => {
             )}
           </FormControl>
 
+          {/* Submit Button */}
           <Button
+            isDisabled={isLoading}
             width="full"
             mt={4}
             type="submit"
             bg="#4F46E5"
-            variant={"submit"}
             color="white"
           >
-            Sign Up
+            {isLoading ? <Spinner size={"sm"} /> : "Sign Up"}
           </Button>
         </form>
       </Box>
+
+      {/* Social Authentication */}
       <SocialAuth />
+
       <Box textAlign="left" mt={3}>
         <Text>
           Already have an account?{" "}
-          <Link as={ReactLink} to={"/login"} color="#4F46E5">
+          <Link as={ReactLink} to="/login" color="#4F46E5">
             Login here
           </Link>
         </Text>
       </Box>
+
+      {/* OTP Modal for Email Verification */}
+      <Modal isOpen={isOtpModalOpen} onClose={() => setIsOtpModalOpen(false)}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Verify your Email</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl>
+              <FormLabel>Enter the OTP sent to your email</FormLabel>
+              <Input
+                value={otp}
+                type="number"
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="Enter OTP"
+              />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" onClick={verifyOtp}>
+              Verify OTP
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };

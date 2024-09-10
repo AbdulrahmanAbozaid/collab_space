@@ -10,9 +10,11 @@ import {
   InputLeftElement,
   InputRightElement,
   Link,
+  Spinner,
   Text,
+  useToast,
 } from "@chakra-ui/react";
-import { Link as ReactLink } from "react-router-dom";
+import { Link as ReactLink, useNavigate } from "react-router-dom";
 import React, { useState } from "react";
 export interface LoginFormInputs {
   email: string;
@@ -21,18 +23,41 @@ export interface LoginFormInputs {
 import { SubmitHandler, useForm } from "react-hook-form";
 import { FaEnvelope, FaEye, FaEyeSlash, FaLock } from "react-icons/fa";
 import SocialAuth from "../../components/SocialAuth";
-import { useAppDispatch } from "../../redux/hooks";
-import { loginUser } from "../../redux/auth/authSlice";
+import { useAppDispatch, useAppSelector } from "../../redux/hooks";
+import { loginUser } from "../../redux/auth/Thunks/index";
+import { RootState } from "../../redux/store";
 const Login: React.FC = () => {
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const { handleSubmit, register } = useForm<LoginFormInputs>();
-  const togglePassword = () => {
-    setShowPassword(!showPassword);
-  };
+  const [showPassword, setShowPassword] = useState(false);
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const {
+    handleSubmit,
+    register,
+    formState: { errors },
+  } = useForm<LoginFormInputs>();
+
+  const { isLoading } = useAppSelector((state: RootState) => state.auth);
+
+  const togglePassword = () => setShowPassword(!showPassword);
+
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
-    console.log(data);
-    await dispatch(loginUser(data));
+    try {
+      await dispatch(loginUser(data)).unwrap();
+      toast({
+        title: "Login successful",
+        status: "success",
+        isClosable: true,
+      });
+      navigate("/collab");
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error || "Invalid credentials",
+        status: "error",
+        isClosable: true,
+      });
+    }
   };
   return (
     <Box
@@ -53,7 +78,7 @@ const Login: React.FC = () => {
       </Box>
       <Box mt={5} textAlign="left">
         <form onSubmit={handleSubmit(onSubmit)}>
-          <FormControl mb={4}>
+          <FormControl mb={4} isInvalid={!!errors.email}>
             <FormLabel>Email</FormLabel>
             <InputGroup>
               <InputLeftElement pointerEvents="none">
@@ -68,6 +93,9 @@ const Login: React.FC = () => {
                 {...register("email", { required: true })}
               />
             </InputGroup>
+            {errors.email && (
+              <Text color="red.500">{errors.email.message}</Text>
+            )}
           </FormControl>
           <FormControl mb={4} borderRadius={"lg"}>
             <FormLabel>Password</FormLabel>
@@ -99,6 +127,9 @@ const Login: React.FC = () => {
                 />
               </InputRightElement>
             </InputGroup>
+            {errors.password && (
+              <Text color="red.500">{errors.password.message}</Text>
+            )}
           </FormControl>
           <Box textAlign="left" mt={4}>
             <Link as={ReactLink} to={"/forgot-password"} color="#4F46E5">
@@ -112,8 +143,9 @@ const Login: React.FC = () => {
             bg="#4F46E5"
             variant={"submit"}
             color="white"
+            isDisabled={isLoading}
           >
-            Sign In
+            {isLoading ? <Spinner size="sm" /> : "Sign In"}
           </Button>
         </form>
       </Box>

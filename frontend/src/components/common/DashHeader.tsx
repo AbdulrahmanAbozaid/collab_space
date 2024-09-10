@@ -14,8 +14,15 @@ import {
 } from "@chakra-ui/react";
 import { FiBell, FiChevronDown } from "react-icons/fi";
 import { useState } from "react";
+import { useAppDispatch, useAppSelector } from "../../redux/hooks";
+import { RootState } from "../../redux/store";
+import { NavLink, useNavigate } from "react-router-dom";
+import { logout } from "../../redux/auth/authSlice";
 
 const DashHeader = () => {
+  const { user } = useAppSelector((state: RootState) => state.auth);
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   // Mock notifications
   const [notifications, setNotifications] = useState([
     { id: 1, message: "You have a new message", isRead: false },
@@ -29,6 +36,15 @@ const DashHeader = () => {
         notif.id === id ? { ...notif, isRead: true } : notif
       )
     );
+  };
+
+  /*useEffect(() => {
+    console.log(user, token);
+  }, [user]);*/
+
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate("/login");
   };
 
   return (
@@ -92,19 +108,22 @@ const DashHeader = () => {
         <Menu>
           <MenuButton as={Box} cursor="pointer">
             <Flex align="center">
-              <Avatar size="sm" name="John Doe" src="path_to_avatar_image" />
+              <Avatar
+                size="sm"
+                name={user?.username}
+                src="path_to_avatar_image"
+              />
               <Box ml="3" textAlign="left">
-                <Text fontWeight="bold">John Doe</Text>
-                <Text fontSize="sm" color="gray.600">
-                  Admin
-                </Text>
+                <Text fontWeight="bold">{user?.username}</Text>
               </Box>
               <FiChevronDown />
             </Flex>
           </MenuButton>
           <MenuList>
-            <MenuItem>Profile</MenuItem>
-            <MenuItem>Logout</MenuItem>
+            <NavLink to={"/collab/profile"}>
+              <MenuItem>Profile</MenuItem>
+            </NavLink>
+            <MenuItem onClick={handleLogout}>Logout</MenuItem>
           </MenuList>
         </Menu>
       </Flex>

@@ -3,7 +3,7 @@ import Quill from "quill";
 import "quill/dist/quill.snow.css";
 import DocumentHeader from "../../components/documents/DocumentHeader";
 import VoiceCallInterface from "../../components/documents/VoiceCall";
-import { Box, Center, Button, IconButton, HStack } from "@chakra-ui/react";
+import { Box, Center, Button, IconButton } from "@chakra-ui/react";
 import { MinusIcon } from "@chakra-ui/icons";
 // @ts-ignore
 import html2pdf from "html2pdf.js";

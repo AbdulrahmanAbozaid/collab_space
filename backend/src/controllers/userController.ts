@@ -20,8 +20,8 @@ export const getAllUsers = catchAsync(
 
 // Get a specific user by ID
 export const getUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const user = await User.findById(req.params.id);
+  async (req: Request & { user: any }, res: Response, next: NextFunction) => {
+    const user = await User.findById(req.user.id);
 
     if (!user) {
       return next(new AppError("No user found with that ID", 404));
@@ -31,30 +31,6 @@ export const getUser = catchAsync(
       status: "success",
       data: {
         user,
-      },
-    });
-  }
-);
-
-// Get the current user
-export const getMe = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  req.params.id = (req as any).user.id;
-  next();
-};
-
-// Create a new user (Admin-only)
-export const createUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const newUser = await User.create(req.body);
-
-    res.status(201).json({
-      status: "success",
-      data: {
-        user: newUser,
       },
     });
   }
@@ -84,18 +60,13 @@ export const updateUser = catchAsync(
 // Delete a user by ID (Soft delete)
 export const deleteUser = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { isDeleted: true },
-      {
-        new: true,
-      }
-    );
+    const user = await User.findByIdAndDelete(req.params.id);
 
     if (!user) {
       return next(new AppError("No user found with that ID", 404));
     }
 
+    // 204 No Content
     res.status(204).json({
       status: "success",
       data: null,
@@ -107,7 +78,7 @@ export const deleteUser = catchAsync(
 export const updateMe = catchAsync(
   async (req: Request & { user: any }, res: Response, next: NextFunction) => {
     // Ensure password is not updated via this route
-    if (req.body.password || req.body.passwordConfirm) {
+    if (req.body.password) {
       return next(
         new AppError(
           "This route is not for password updates. Please use /updateMyPassword.",
@@ -134,7 +105,8 @@ export const updateMe = catchAsync(
 // Soft delete the current user (deactivate account)
 export const deleteMe = catchAsync(
   async (req: Request & { user: any }, res: Response, next: NextFunction) => {
-    await User.findByIdAndUpdate(req.user.id, { isDeleted: true });
+    // await User.findByIdAndUpdate(req.user.id, { isDeleted: true });
+    await User.findByIdAndDelete(req.user.id);
 
     res.status(204).json({
       status: "success",

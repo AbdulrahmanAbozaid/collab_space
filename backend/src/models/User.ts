@@ -1,9 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
-
-// Define the interface for the User schema
-interface IUser extends Document {
+export interface IUser extends Document {
   username: string;
   email: string;
   password: string;
@@ -15,45 +13,64 @@ interface IUser extends Document {
   created_at: Date;
   updated_at: Date;
   last_login?: Date;
-  passwordChangedAt?: Date;
-  resetPasswordToken?: string;
-  resetPasswordExpires?: Date;
   isActive: boolean;
   isDeleted: boolean;
+
+  // Newly added properties for email verification
+  passwordChangedAt?: Date;
+  resetPasswordExpires?: Date;
+  resetPasswordToken?: string;
+  verifyEmailOTPToken?: string;
+  verifyEmailOTPExpires?: Date;
+  forgotPasswordOTP?: string;
+
+  // Methods for handling password comparison and token generation
   comparePassword(candidatePassword: string): Promise<boolean>;
   createPasswordResetToken(): string;
   changedPasswordAfter(JWTTimestamp: number): boolean;
+  createForgetPasswordOTP(OTP: string): string;
 }
 
-// Define the User schema
 const UserSchema = new Schema<IUser>({
   username: {
     type: String,
-    required: [true, "Please provide your username"],
+    required: true,
     unique: true,
   },
   email: {
     type: String,
-    required: [true, "Please provide your email"],
+    required: true,
     unique: true,
-    lowercase: true,
   },
   password: {
     type: String,
-    required: [true, "Please provide a password"],
-    select: false,
+    required: true,
+    select: false, // Don't return password by default
   },
-  profile_picture: { type: String },
-  oauth_provider: { type: String },
-  oauth_id: { type: String },
-  roles: { type: [String], default: ["editor"] },
-  notifications: [{ type: Schema.Types.ObjectId, ref: 'Notification' }], // Reference to the Notification model
-  created_at: { type: Date, default: Date.now },
-  updated_at: { type: Date, default: Date.now },
-  last_login: { type: Date },
-  passwordChangedAt: { type: Date },
-  resetPasswordToken: { type: String },
-  resetPasswordExpires: { type: Date },
+  profile_picture: String,
+  oauth_provider: String,
+  oauth_id: String,
+  roles: {
+    type: [String],
+    default: ["editor"],
+  },
+  notifications: [mongoose.Types.ObjectId],
+  created_at: {
+    type: Date,
+    default: Date.now,
+  },
+  updated_at: {
+    type: Date,
+    default: Date.now,
+  },
+  last_login: Date,
+
+  // New properties for verification, password reset, etc.
+  verifyEmailOTPToken: String,
+  verifyEmailOTPExpires: Date,
+  resetPasswordToken: String,
+  forgotPasswordOTP: { type: String },
+  resetPasswordExpires: Date,
   isActive: {
     type: Boolean,
     default: true,
@@ -63,6 +80,7 @@ const UserSchema = new Schema<IUser>({
     default: false,
   },
 });
+
 // Middleware for updating `updated_at` field
 UserSchema.pre<IUser>("save", function (next) {
   this.updated_at = new Date();
@@ -108,6 +126,37 @@ UserSchema.methods.createPasswordResetToken = function (): string {
 
   this.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // Token expires in 10 minutes
 
+  return resetToken;
+};
+
+// Create and store a verification OTP for email
+UserSchema.methods.createVerifyEmailOTP = function (OTP: string) {
+  this.verifyEmailOTPToken = crypto
+    .createHash("sha256")
+    .update(OTP)
+    .digest("hex");
+  this.verifyEmailOTPExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  return OTP;
+};
+
+// Create and store a forget password OTP
+UserSchema.methods.createForgetPasswordOTP = function (OTP: string) {
+  this.forgotPasswordOTP = crypto
+    .createHash("sha256")
+    .update(OTP)
+    .digest("hex");
+  this.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  return OTP;
+};
+
+// Create and store a password reset token
+UserSchema.methods.createPasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  this.resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+  this.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
   return resetToken;
 };
 

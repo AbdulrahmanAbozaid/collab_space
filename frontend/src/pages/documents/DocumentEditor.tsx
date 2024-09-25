@@ -1,6 +1,4 @@
 import React, { useRef, useState, useEffect } from "react";
-import Quill from "quill";
-import "quill/dist/quill.snow.css";
 import DocumentHeader from "../../components/documents/DocumentHeader";
 import VoiceCallInterface from "../../components/documents/VoiceCall";
 import { Box, Center, Button, IconButton } from "@chakra-ui/react";
@@ -8,176 +6,26 @@ import { MinusIcon } from "@chakra-ui/icons";
 // @ts-ignore
 import html2pdf from "html2pdf.js";
 import { useParams } from "react-router-dom";
-import io from "socket.io-client";
+// Quill
+import * as Y from "yjs";
+import Quill from "quill";
+import "quill/dist/quill.snow.css";
+import { QuillBinding } from "y-quill";
+import { WebrtcProvider } from "y-webrtc";
+import QuillCursors from "quill-cursors";
 
 const DocumentEditorPage: React.FC = () => {
-  const [isCallActive, setIsCallActive] = useState(true);
+  const [isCallActive, _] = useState(true);
   const [isCallVisible, setIsCallVisible] = useState(true);
   const [pageCount, setPageCount] = useState(1);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const quillInstances = useRef<Quill[]>([]);
   const { id } = useParams<{ id: string }>(); // For link sharing, using document ID
+  Quill.register("modules/cursors", QuillCursors);
 
-  const socketRef = useRef<any>(null);
-  const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({});
-  const dataChannels = useRef<{ [key: string]: RTCDataChannel }>({});
-  const localStream = useRef<MediaStream | null>(null); // Stream for voice call
-
-  const ICE_CONFIG = {
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-  };
-
-  useEffect(() => {
-    socketRef.current = io("http://localhost:3000/"); // Replace with your signaling server
-
-    // WebRTC event listeners for signaling
-    socketRef.current.on("offer", async (message: any) => {
-      const peerConnection = createPeerConnection(message.from);
-      await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(message.offer)
-      );
-
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-
-      socketRef.current.emit("answer", { answer, to: message.from });
-    });
-
-    socketRef.current.on("answer", async (message: any) => {
-      const peerConnection = peerConnections.current[message.from];
-      await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(message.answer)
-      );
-    });
-
-    socketRef.current.on("ice-candidate", (message: any) => {
-      const peerConnection = peerConnections.current[message.from];
-      peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
-    });
-
-    return () => {
-      Object.values(peerConnections.current).forEach((peerConnection) =>
-        peerConnection.close()
-      );
-      socketRef.current.disconnect();
-    };
-  }, []);
-
-  // Function to set up peer connections for voice call and data channels
-  const createPeerConnection = (peerId: string) => {
-    const peerConnection = new RTCPeerConnection(ICE_CONFIG);
-
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        socketRef.current.emit("ice-candidate", {
-          candidate: event.candidate,
-          to: peerId,
-        });
-      }
-    };
-
-    peerConnection.ontrack = (event) => {
-      // Handling the remote stream
-      const remoteVideo = document.getElementById(`remote-video-${peerId}`);
-      if (remoteVideo) {
-        (remoteVideo as HTMLVideoElement).srcObject = event.streams[0];
-      }
-    };
-
-    if (localStream.current) {
-      localStream.current.getTracks().forEach((track) => {
-        peerConnection.addTrack(track, localStream.current!);
-      });
-    }
-
-    const dataChannel = peerConnection.createDataChannel("document");
-
-    dataChannel.onmessage = (event) => {
-      const delta = JSON.parse(event.data);
-      quillInstances.current.forEach((quillInstance) => {
-        quillInstance.updateContents(delta); // Apply the changes
-      });
-    };
-
-    dataChannels.current[peerId] = dataChannel;
-    peerConnections.current[peerId] = peerConnection;
-
-    return peerConnection;
-  };
-
-  // Function to handle document changes and broadcast them via WebRTC data channels
-  const handleDocumentChange = (delta: any, source: string) => {
-    if (source === "user") {
-      const change = JSON.stringify(delta);
-      Object.values(dataChannels.current).forEach((dataChannel) => {
-        if (dataChannel.readyState === "open") {
-          dataChannel.send(change); // Broadcast changes to all collaborators
-        }
-      });
-    }
-  };
-
-  const handleAddPeer = async (peerId: string) => {
-    const peerConnection = createPeerConnection(peerId);
-
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-
-    socketRef.current.emit("offer", { offer, to: peerId });
-  };
-
-  const startCall = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: false,
-      });
-      localStream.current = stream;
-
-      // You can now call other participants
-    } catch (err) {
-      console.error("Failed to access media devices", err);
-    }
-  };
-
-  useEffect(() => {
-    // Auto-start the voice call when the page loads
-    startCall();
-  }, []);
-
-  const handleEndCall = () => {
-    setIsCallActive(false);
-    setIsCallVisible(false);
-
-    if (localStream.current) {
-      localStream.current.getTracks().forEach((track) => track.stop());
-      localStream.current = null;
-    }
-  };
-
-  const mockCollaborators = [
-    { name: "Alex", status: "editing" },
-    { name: "Jamie", status: "viewing" },
-  ];
-
-  const mockParticipants = [
-    { name: "John Doe", isMuted: false, avatarUrl: "/path/to/avatar1.png" },
-    { name: "Jane Smith", isMuted: true, avatarUrl: "/path/to/avatar2.png" },
-  ];
-
-  const handleMute = (name: string) => {
-    console.log(
-      `${name} has been ${
-        mockParticipants.find((p) => p.name === name)?.isMuted
-          ? "unmuted"
-          : "muted"
-      }.`
-    );
-  };
-
-  const handleToggleCall = () => {
-    setIsCallVisible(!isCallVisible);
-  };
+  // Create a new Yjs document and Y.Text for the Quill editor
+  const ydoc = useRef<Y.Doc>(new Y.Doc());
+  const yText = useRef<Y.Text>(ydoc.current.getText("quill-content"));
 
   const handleRemovePage = (index: number) => {
     if (index > 0) {
@@ -199,7 +47,12 @@ const DocumentEditorPage: React.FC = () => {
     pageRefs.current.forEach((pageRef, index) => {
       if (pageRef && !quillInstances.current[index]) {
         const quill = new Quill(pageRef, {
+          //   cursors: true,
           theme: "snow",
+          placeholder: "Start collaborating...",
+          history: {
+            userOnly: true
+          },
           modules: {
             toolbar: [
               [{ header: [1, 2, 3, false] }],
@@ -209,6 +62,15 @@ const DocumentEditorPage: React.FC = () => {
             ],
           },
         });
+
+        // Setup Yjs WebRTC provider for peer-to-peer document syncing
+        const provider = new WebrtcProvider(`document-${id}`, ydoc.current);
+
+        // Bind Quill to the Yjs document using y-quill and Y.Text
+        const binding = new QuillBinding(yText.current, quill);
+
+        // Store the Quill instance
+        //   quillInstances.current.push(quill);
 
         quillInstances.current[index] = quill;
 
@@ -240,6 +102,11 @@ const DocumentEditorPage: React.FC = () => {
             }
           }
         );
+
+        return () => {
+          binding.destroy();
+          provider.disconnect();
+        };
       }
     });
   }, [pageCount]);
@@ -373,15 +240,15 @@ const DocumentEditorPage: React.FC = () => {
     <Box bg="gray.50" minHeight="100vh" p={4}>
       <DocumentHeader
         documentTitle="My Document"
-        collaborators={mockCollaborators}
-        onToggleCall={handleToggleCall}
+        collaborators={[]}
+        onToggleCall={() => setIsCallVisible(!isCallVisible)}
       />
       {isCallActive && isCallVisible && (
         <VoiceCallInterface
-          participants={mockParticipants}
-          onMute={handleMute}
-          onEndCall={handleEndCall}
-          onHideCall={handleToggleCall}
+          participants={[]}
+          onMute={() => 1}
+          onEndCall={() => 1}
+          onHideCall={() => 1}
         />
       )}
       <Center>
@@ -391,7 +258,6 @@ const DocumentEditorPage: React.FC = () => {
               key={index}
               bg="white"
               shadow="md"
-              
               borderRadius="md"
               border="1px solid #e0e0e0"
               position="relative"

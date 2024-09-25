@@ -5,29 +5,31 @@ import {
   IconButton,
   Flex,
   Input,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
+  Spacer,
+  Tooltip,
 } from "@chakra-ui/react";
 import { PhoneIcon, CheckIcon } from "@chakra-ui/icons";
-import { FaUsers } from "react-icons/fa"; // For the group icon
+import { FaComments } from "react-icons/fa"; // For the group icon
 
-type Collaborator = {
-  name: string;
-  status: "editing" | "viewing" | "idle" | string;
-};
+// type Collaborator = {
+//   name: string;
+//   status: "editing" | "viewing" | "idle" | string;
+// };
 
 type DocumentHeaderProps = {
   documentTitle: string;
-  collaborators: Collaborator[];
   onToggleCall: () => void;
+  onToggle: () => void;
+  roomId: string;
+  username: string;
 };
 
 const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   documentTitle,
-  collaborators,
   onToggleCall,
+  onToggle,
+  roomId,
+  username,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(documentTitle);
@@ -73,7 +75,12 @@ const DocumentHeader: React.FC<DocumentHeaderProps> = ({
           />
         </Flex>
       ) : (
-        <Text fontSize="xl" fontWeight="bold" onClick={handleTitleClick} cursor="pointer">
+        <Text
+          fontSize="xl"
+          fontWeight="bold"
+          onClick={handleTitleClick}
+          cursor="pointer"
+        >
           {editedTitle}
         </Text>
       )}
@@ -81,7 +88,7 @@ const DocumentHeader: React.FC<DocumentHeaderProps> = ({
       {/* Participants and Call Controls */}
       <Flex alignItems="center">
         {/* Participants Group Icon */}
-        <Menu>
+        {/* <Menu>
           <MenuButton
             as={IconButton}
             aria-label="Show Participants"
@@ -96,8 +103,21 @@ const DocumentHeader: React.FC<DocumentHeaderProps> = ({
               </MenuItem>
             ))}
           </MenuList>
-        </Menu>
+        </Menu> */}
 
+        {/* Chat Button */}
+        <Tooltip label={roomId} openDelay={500}>
+          <IconButton
+            aria-label="Toggle Chat"
+            icon={<FaComments />}
+            onClick={onToggle}
+            colorScheme="black"
+            bg={'gray.100'}
+            _hover={{
+                bg: "gray.300",
+            }}
+          />
+        </Tooltip>
         {/* Call Button */}
         <IconButton
           aria-label="Toggle Call Interface"
@@ -107,6 +127,9 @@ const DocumentHeader: React.FC<DocumentHeaderProps> = ({
           variant="ghost"
           ml={2}
         />
+        <Text ml={'2rem'} fontSize="lg" fontWeight={'bold'} color="black">
+          {username}
+        </Text>
       </Flex>
     </Box>
   );

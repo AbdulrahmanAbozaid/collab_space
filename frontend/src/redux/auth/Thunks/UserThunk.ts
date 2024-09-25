@@ -9,7 +9,7 @@ export const restoreUser = createAsyncThunk(
         const res = await API.get("/user/me");
         return res;
       } catch (error: any) {
-        return rejectWithValue(error.response?.data || error.message);
+        return rejectWithValue(error.response?.data?.message || error.message);
       }
     }
   );

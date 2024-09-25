@@ -5,3 +5,12 @@
   padding: 8px;
   border-radius: 5px;
 }
+
+.custom-editor .ql-container {
+  min-height: 600px; /* Set container height */
+}
+
+.custom-editor .ql-editor {
+  min-height: 500px; /* Minimum typing area height */
+  font-size: 1.4rem;
+}

@@ -12,7 +12,7 @@ export const updateUserProfile = createAsyncThunk(
       const response = await API.put("/user/me", userData); // PATCH /user/me route
       return (response as any).user; // Assuming the user object is returned
     } catch (error: any) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || error.message);
     }
   }
 );
@@ -25,7 +25,7 @@ export const deleteUserAccount = createAsyncThunk(
       await API.delete("/user/me"); // DELETE /user/me route
       return true; // Return success or boolean to indicate account was deleted
     } catch (error: any) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || error.message);
     }
   }
 );

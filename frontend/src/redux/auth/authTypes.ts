@@ -15,7 +15,7 @@ export interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  error: string | null;
+  error: any | null;
 }
 
 export interface LoginCredentials {

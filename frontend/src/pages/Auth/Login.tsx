@@ -37,7 +37,7 @@ const Login: React.FC = () => {
     formState: { errors },
   } = useForm<LoginFormInputs>();
 
-  const { isLoading } = useAppSelector((state: RootState) => state.auth);
+  const { isLoading, error } = useAppSelector((state: RootState) => state.auth);
 
   const togglePassword = () => setShowPassword(!showPassword);
 
@@ -59,6 +59,7 @@ const Login: React.FC = () => {
       });
     }
   };
+
   return (
     <Box
       width="full"
@@ -136,6 +137,7 @@ const Login: React.FC = () => {
               Forgot your password?
             </Link>
           </Box>
+          {error ? <Text>{error.message}</Text> : null}
           <Button
             width="full"
             mt={4}

@@ -4,14 +4,10 @@ import connection from "./config/database";
 
 config();
 
-// eslint-disable-next-line no-undef
 const port = process.env.PORT || 3000;
 
 process.on("uncaughtException", (error: Error) => {
-  console.log("We handle it there", error);
-
-  //handle(error)
-  // if (untrusted): process.exit(1)
+  console.error("Uncaught Exception:", error);
 });
 
 await connection();

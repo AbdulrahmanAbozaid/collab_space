@@ -1,0 +1,38 @@
+const socketRef = useRef<any>(null);
+const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({});
+const dataChannels = useRef<{ [key: string]: RTCDataChannel }>({});
+const localStream = useRef<MediaStream | null>(null); // Stream for voice call
+
+
+const mockCollaborators = [
+    { name: "Alex", status: "editing" },
+    { name: "Jamie", status: "viewing" },
+  ];
+  const mockParticipants = [
+    { name: "John Doe", isMuted: false, avatarUrl: "/path/to/avatar1.png" },
+    { name: "Jane Smith", isMuted: true, avatarUrl: "/path/to/avatar2.png" },
+  ];
+
+  const handleToggleCall = () => {
+    setIsCallVisible(!isCallVisible);
+  };
+
+  const handleEndCall = () => {
+    setIsCallActive(false);
+    setIsCallVisible(false);
+
+    if (localStream.current) {
+      localStream.current.getTracks().forEach((track) => track.stop());
+      localStream.current = null;
+    }
+  };
+
+  const handleMute = (name: string) => {
+    console.log(
+      `${name} has been ${
+        mockParticipants.find((p) => p.name === name)?.isMuted
+          ? "unmuted"
+          : "muted"
+      }.`
+    );
+  };

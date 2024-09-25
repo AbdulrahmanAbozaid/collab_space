@@ -111,6 +111,8 @@ const authSlice = createSlice({
         state.user = action.payload.data.user;
         state.token = cookies.get("clb-tkn");
         state.isAuthenticated = true;
+        console.log("RESTORE");
+        
       })
       .addCase(restoreUser.rejected, (state, action: PayloadAction<any>) => {
         state.isLoading = false;

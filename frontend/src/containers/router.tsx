@@ -8,8 +8,8 @@ import VerifyEmail from "../pages/Auth/VerifyEmail";
 import DashboardLayout from "../components/layouts/DashboardLayout";
 import Documents from "../pages/collab/Documents";
 import Settings from "../pages/collab/Settings";
-import DocumentEditorPage from "../pages/documents/DocumentEditor";
 import Profile from "../pages/Auth/Profile";
+import DocumentEditorPage from "./../pages/documents/DocumentEditorSingle";
 
 export const AppRoutes = () => {
   const elements = useRoutes([
@@ -32,7 +32,7 @@ export const AppRoutes = () => {
       children: [
         { path: "", element: <Documents /> },
         { path: "settings", element: <Settings /> },
-        { path: "profile", element: <Profile/> },
+        { path: "profile", element: <Profile /> },
       ],
     },
     {

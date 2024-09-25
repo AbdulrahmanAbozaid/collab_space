@@ -2,11 +2,14 @@ import { Box, Button, Container, Flex, Heading } from "@chakra-ui/react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 export default function Header() {
-  const isAuthenticated = false;
   const { pathname } = useLocation();
   const navigate = useNavigate();
+
+  const isAuthenticated = false;
+
   const buttonText = pathname === "/login" ? "Sign Up" : "Sign In";
   const buttonPath = pathname === "/login" ? "/register" : "/login";
+
   const handleButtonClick = () => {
     navigate(buttonPath);
   };
@@ -20,7 +23,7 @@ export default function Header() {
       bg="brand.white"
       width={"full"}
       color="white"
-      position={'fixed'}
+      position={"fixed"}
       top={0}
       left={0}
       zIndex={"99"}
@@ -39,7 +42,7 @@ export default function Header() {
           </Flex>
           {!isAuthenticated && (
             <Button
-            size={'wide'}
+              size={"wide"}
               bg={"brand.main"}
               color={"brand.white"}
               variant="outline"

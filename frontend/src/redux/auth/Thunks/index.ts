@@ -1,6 +1,11 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import API from "../../../utils/Api";
-import { emailCredentials, LoginCredentials, RegisterResponse, SignupData } from "../authTypes";
+import {
+  emailCredentials,
+  LoginCredentials,
+  RegisterResponse,
+  SignupData,
+} from "../authTypes";
 
 // Thunk for user login
 export const loginUser = createAsyncThunk(
@@ -10,7 +15,7 @@ export const loginUser = createAsyncThunk(
       const response = await API.post("/auth/login", credentials);
       return response;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || error?.message);
     }
   }
 );
@@ -23,20 +28,23 @@ export const signupUser = createAsyncThunk(
       const response = await API.post<RegisterResponse>("/auth/register", data);
       return response;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || error.message);
     }
   }
 );
 
 // Thunk for verifyEmail
 export const verifyEmail = createAsyncThunk(
-    "auth/email",
-    async (credentials: emailCredentials, { rejectWithValue }) => {
-      try {
-        const response = await API.post(`/auth/verify-email/${credentials.otp}`, credentials);
-        return response;
-      } catch (error: any) {
-        return rejectWithValue(error.response?.data || error.message);
-      }
+  "auth/email",
+  async (credentials: emailCredentials, { rejectWithValue }) => {
+    try {
+      const response = await API.post(
+        `/auth/verify-email/${credentials.otp}`,
+        credentials
+      );
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || error?.message);
     }
-  );
+  }
+);

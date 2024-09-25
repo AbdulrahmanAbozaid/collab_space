@@ -16,11 +16,11 @@ interface MediaFile {
 
 interface IDocument extends MongooseDocument {
   title: string;
-  type: string;
+  type?: string;
   content: string;
   created_by: mongoose.Types.ObjectId; // User who created the document
-  collaborators: mongoose.Types.ObjectId[]; // Users collaborating on the document
-  version_history: VersionHistory[];
+  collaborators?: mongoose.Types.ObjectId[];
+  version_history?: VersionHistory[];
   media_files?: MediaFile[];
   local_file_path?: string;
   created_at: Date;

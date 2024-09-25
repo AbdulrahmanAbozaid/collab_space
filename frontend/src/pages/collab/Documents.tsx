@@ -1,15 +1,19 @@
-import { Box, Grid, Text, Button, VStack, Icon } from "@chakra-ui/react";
+import { Box, Grid, Text, Button, VStack, Icon, useClipboard } from "@chakra-ui/react";
 import { FaPlus } from "react-icons/fa";
 import DocumentCard from "../../components/DocumentCard";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid"; // Use uuid to generate unique document IDs
+import { useState } from "react";
 
 const Documents = () => {
   const navigate = useNavigate();
+  const [documentId, setDocumentId] = useState<string | null>(null);
+  const { hasCopied, onCopy } = useClipboard(documentId || "");
 
   const handleCreateNewDocument = () => {
-    const newDocumentId = uuidv4(); // Generate a unique document ID
-    navigate(`/doc/${newDocumentId}`); // Redirect to the document editor with the new ID
+    const newDocumentId = uuidv4(); // Generate a unique document ID for collaboration
+    setDocumentId(newDocumentId); // Store it for the user to share
+    navigate(`/doc/${newDocumentId}`); // Redirect to the document editor
   };
 
   return (
@@ -28,7 +32,7 @@ const Documents = () => {
             h={16}
             iconSpacing={0}
             aria-label="Create New Document"
-            onClick={handleCreateNewDocument} // Handle click event
+            onClick={handleCreateNewDocument}
           >
             <Icon as={FaPlus} w={6} h={6} />
           </Button>
@@ -37,6 +41,15 @@ const Documents = () => {
           </Text>
         </VStack>
       </Grid>
+
+      {documentId && (
+        <VStack>
+          <Text>Your document ID is:</Text>
+          <Button onClick={onCopy}>
+            {hasCopied ? "Copied!" : documentId}
+          </Button>
+        </VStack>
+      )}
 
       {/* Recent Documents Section */}
       <Text fontSize="2xl" fontWeight="bold" mb={4}>
@@ -48,7 +61,6 @@ const Documents = () => {
           lastUpdated="2 hours ago"
           imageUrl="https://via.placeholder.com/150"
         />
-        {/* Add more DocumentCards as needed */}
       </Grid>
     </Box>
   );

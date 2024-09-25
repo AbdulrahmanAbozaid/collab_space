@@ -12,17 +12,18 @@ import {
   Stack,
   Badge,
 } from "@chakra-ui/react";
-import { FiBell, FiChevronDown } from "react-icons/fi";
+import { FiBell, FiChevronDown, FiMenu } from "react-icons/fi";
 import { useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
 import { RootState } from "../../redux/store";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../../redux/auth/authSlice";
 
-const DashHeader = () => {
+const DashHeader = ({ onSidebarOpen }: { onSidebarOpen: () => void }) => {
   const { user } = useAppSelector((state: RootState) => state.auth);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+
   // Mock notifications
   const [notifications, setNotifications] = useState([
     { id: 1, message: "You have a new message", isRead: false },
@@ -38,12 +39,11 @@ const DashHeader = () => {
     );
   };
 
-  /*useEffect(() => {
-    console.log(user, token);
-  }, [user]);*/
-
   const handleLogout = () => {
+    // Clear Redux state
     dispatch(logout());
+
+    // Redirect to login page
     navigate("/login");
   };
 
@@ -58,9 +58,18 @@ const DashHeader = () => {
       borderBottomColor="gray.200"
       width="100%"
       top="0"
-      zIndex="1000"
+      zIndex={1000}
       position="fixed"
     >
+      <IconButton
+        icon={<FiMenu />}
+        variant="ghost"
+        fontSize="xl"
+        onClick={onSidebarOpen}
+        aria-label="Open Menu"
+        display={{ base: "inline-flex", md: "none" }} // Visible only on mobile
+      />
+
       <Box>
         <Text fontSize="2xl" fontWeight="bold" color="teal.500">
           CollabSpace
@@ -99,8 +108,6 @@ const DashHeader = () => {
                 </Text>
               )}
             </MenuGroup>
-            {/* <MenuDivider />
-              <MenuItem>View All</MenuItem> */}
           </MenuList>
         </Menu>
 
@@ -111,10 +118,10 @@ const DashHeader = () => {
               <Avatar
                 size="sm"
                 name={user?.username}
-                src="path_to_avatar_image"
+                src="profile picture"
               />
               <Box ml="3" textAlign="left">
-                <Text fontWeight="bold">{user?.username}</Text>
+                <Text fontWeight="bold">{user?.username || "User"}</Text>
               </Box>
               <FiChevronDown />
             </Flex>

@@ -1,0 +1,123 @@
+useEffect(() => {
+  socketRef.current = io("http://localhost:3000/"); // Replace with your signaling server
+
+  // WebRTC event listeners for signaling
+  socketRef.current.on("offer", async (message: any) => {
+    const peerConnection = createPeerConnection(message.from);
+    await peerConnection.setRemoteDescription(
+      new RTCSessionDescription(message.offer)
+    );
+
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    socketRef.current.emit("answer", { answer, to: message.from });
+  });
+
+  socketRef.current.on("answer", async (message: any) => {
+    const peerConnection = peerConnections.current[message.from];
+    await peerConnection.setRemoteDescription(
+      new RTCSessionDescription(message.answer)
+    );
+  });
+
+  socketRef.current.on("ice-candidate", (message: any) => {
+    const peerConnection = peerConnections.current[message.from];
+    peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
+  });
+
+  return () => {
+    Object.values(peerConnections.current).forEach((peerConnection) =>
+      peerConnection.close()
+    );
+    socketRef.current.disconnect();
+  };
+}, []);
+
+// Function to set up peer connections for voice call and data channels
+const createPeerConnection = (peerId: string) => {
+  const peerConnection = new RTCPeerConnection(ICE_CONFIG);
+
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socketRef.current.emit("ice-candidate", {
+        candidate: event.candidate,
+        to: peerId,
+      });
+    }
+  };
+
+  peerConnection.ontrack = (event) => {
+    // Handling the remote stream
+    const remoteVideo = document.getElementById(`remote-video-${peerId}`);
+    if (remoteVideo) {
+      (remoteVideo as HTMLVideoElement).srcObject = event.streams[0];
+    }
+  };
+
+  if (localStream.current) {
+    localStream.current.getTracks().forEach((track) => {
+      peerConnection.addTrack(track, localStream.current!);
+    });
+  }
+
+  const dataChannel = peerConnection.createDataChannel("document");
+
+  dataChannel.onmessage = (event) => {
+    const delta = JSON.parse(event.data);
+    quillInstances.current.forEach((quillInstance) => {
+      quillInstance.updateContents(delta); // Apply the changes
+    });
+  };
+
+  dataChannels.current[peerId] = dataChannel;
+  peerConnections.current[peerId] = peerConnection;
+
+  return peerConnection;
+};
+
+const ICE_CONFIG = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+};
+
+/*
+  // Function to handle document changes and broadcast them via WebRTC data channels
+  const handleDocumentChange = (delta: any, source: string) => {
+    if (source === "user") {
+      const change = JSON.stringify(delta);
+      Object.values(dataChannels.current).forEach((dataChannel) => {
+        if (dataChannel.readyState === "open") {
+          dataChannel.send(change); // Broadcast changes to all collaborators
+        }
+      });
+    }
+  };
+
+  const handleAddPeer = async (peerId: string) => {
+    const peerConnection = createPeerConnection(peerId);
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    socketRef.current.emit("offer", { offer, to: peerId });
+  };
+
+  const startCall = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false,
+      });
+      localStream.current = stream;
+
+      // You can now call other participants
+    } catch (err) {
+      console.error("Failed to access media devices", err);
+    }
+  };*/
+
+useEffect(() => {
+  // Auto-start the voice call when the page loads
+  // startCall();
+  console.log(id);
+}, []);

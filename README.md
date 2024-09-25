@@ -10,7 +10,7 @@
 
 ## Screenshot
 
-![CollabSpace Screenshot](https://ibb.co/Wtgd8HD)
+![CollabSpace Screenshot](./screenshot.png)
 
 ## Installation
 

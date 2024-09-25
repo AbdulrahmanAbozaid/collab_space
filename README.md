@@ -10,7 +10,7 @@
 
 ## Screenshot
 
-![CollabSpace Screenshot](https://drive.google.com/file/d/1swRHIEVdcD8oJ7N7yOjl9qQKgvG8rRMp/view?usp=sharing)
+![CollabSpace Screenshot](https://ibb.co/Wtgd8HD)
 
 ## Installation
 

@@ -6,7 +6,7 @@
 
 - **Deployed Site**: Not Yet
 - **Blog Article**: Not Yet
-- **Author(s)**: [Abdulrahman Abuzied - LinkedIn](https://www.linkedin.com/in/abdulrahman-abuzeid-a5a347231/)
+- **Author(s)**: [Abdulrahman Abuzied - LinkedIn](https://www.linkedin.com/in/abdulrahman-abuzeid/)
 
 ## Screenshot
 

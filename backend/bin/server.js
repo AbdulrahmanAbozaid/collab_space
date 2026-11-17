@@ -49,6 +49,7 @@ const onconnection = conn => {
    * @type {Set<string>}
    */
   const subscribedTopics = new Set()
+  console.log("Connection");
   let closed = false
   // Check if connection is still alive
   let pongReceived = true

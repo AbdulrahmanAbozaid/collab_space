@@ -9,7 +9,9 @@ import DashboardLayout from "../components/layouts/DashboardLayout";
 import Documents from "../pages/collab/Documents";
 import Settings from "../pages/collab/Settings";
 import Profile from "../pages/Auth/Profile";
-import DocumentEditorPage from "./../pages/documents/DocumentEditorSingle";
+import DocumentEditorPage from "./../pages/documents/DocumentEditorPage";
+// import DocumentEditorPage from "./../pages/documents/DocumentEditorSingle";
+import AddCollaboratorPage from "../components/documents/Collaborate";
 
 export const AppRoutes = () => {
   const elements = useRoutes([
@@ -38,6 +40,10 @@ export const AppRoutes = () => {
     {
       path: "/doc/:id",
       element: <DocumentEditorPage />,
+    },
+    {
+      path: "/documents/:id/add-collaborator",
+      element: <AddCollaboratorPage />,
     },
     { path: "*", element: <Navigate to="/login" replace /> },
   ]);

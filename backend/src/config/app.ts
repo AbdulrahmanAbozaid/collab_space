@@ -9,7 +9,7 @@ import GlobeErrorHandler from "../middlewares/errorHandler";
 import AppError from "../utils/appError";
 import { createServer, Server as HTTPServer } from "http";
 import { Server as SocketServer } from "socket.io";
-import { ExpressPeerServer } from "peer";
+import { PeerServer } from "peer";
 import setupSocketIO from "./socket";
 
 // Initialize environment variables
@@ -32,19 +32,16 @@ const io = new SocketServer(server, {
 setupSocketIO(io);
 
 // Initialize PeerJS server and attach to express
-const peerServer = ExpressPeerServer(server, {
-  // @ts-ignore
-  debug: true,
+const peerServer = PeerServer({
+  port: Number(process.env.PEER_PORT) || 9000,
+  path: "/peerjs",
 });
-
-// Mount PeerJS on /peerjs
-app.use("/peerjs", peerServer);
 
 // PeerJS event listeners
 peerServer.on("connection", (client) => {
   console.log(
     "PeerJS connection established with",
-    (client as any).id || client
+    (client as any).id || client,
   );
 });
 
@@ -57,9 +54,9 @@ app.use(
   cors({
     allowedHeaders: "*",
     origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "PATCH", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
-  })
+  }),
 );
 app.use(express.json({ limit: "20kb" }));
 app.use(express.urlencoded({ extended: false, limit: "30mb" }));

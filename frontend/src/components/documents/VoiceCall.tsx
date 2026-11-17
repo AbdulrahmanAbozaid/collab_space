@@ -1,340 +1,332 @@
 import React, { useEffect, useRef, useState } from "react";
-import Peer from "peerjs"; // PeerJS
+import Peer, { MediaConnection } from "peerjs";
 import {
-  Box,
-  Flex,
-  IconButton,
-  Tooltip,
-  Text,
   Avatar,
-  Stack,
+  Box,
+  Button,
+  Flex,
   Grid,
+  IconButton,
+  Stack,
+  Text,
+  Tooltip,
 } from "@chakra-ui/react";
-import { FaPhone, FaMinus, FaTimes } from "react-icons/fa";
-import { useAppSelector } from "../../redux/hooks";
-import { RootState } from "../../redux/store";
-// import axios from "axios";
-//@ts-ignore
-import { io, Socket } from "socket.io-client";
+import { FaMinus, FaPhone, FaTimes } from "react-icons/fa";
+// @ts-ignore
+import type { Socket } from "socket.io-client";
 
-interface VideoProps {
-  peerStream: MediaStream;
+// Move these to env vars for production
+const PEER_HOST = import.meta.env.PEER_HOST;
+const PEER_PORT = import.meta.env.PEER_PORT;
+const PEER_PATH = import.meta.env.PEER_PATH;
+
+interface Remote {
+  peerId: string;
+  username: string;
+  stream: MediaStream;
 }
 
-interface VoiceCallInterfaceProps {
+interface VoiceCallProps {
   roomId: string;
   // @ts-ignore
-  socketIO: Socket;
+  socket: Socket | null; // the page's single shared socket
+  username: string;
+  withVideo?: boolean;
+  onLeave: () => void; // parent unmounts us -> effect cleanup tears everything down
 }
 
-const Video: React.FC<VideoProps> = ({ peerStream }) => {
-  const userVideo = useRef<HTMLVideoElement>(null);
+/**
+ * A component that displays a video stream in a tile.
+ * @param param0 The props for the component.
+ * @returns The rendered component.
+ */
+const StreamTile: React.FC<{
+  stream: MediaStream;
+  name: string;
+  muted?: boolean;
+}> = ({ stream, name, muted }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [hasVideo, setHasVideo] = useState(stream.getVideoTracks().length > 0);
+  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
-    if (userVideo.current) {
-      userVideo.current.srcObject = peerStream;
+    const update = () => setHasVideo(stream.getVideoTracks().length > 0);
+    stream.addEventListener("addtrack", update);
+    stream.addEventListener("removetrack", update);
+    update();
+
+    // Video is picture only. Setting .muted on the element is more reliable
+    // than the React prop.
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.muted = true;
     }
-  }, [peerStream]);
+    // Sound comes only from the <audio> element, and never for the local tile
+    if (!muted && audioRef.current) {
+      audioRef.current.srcObject = stream;
+      audioRef.current.play().catch(() => setBlocked(true));
+    }
+    return () => {
+      stream.removeEventListener("addtrack", update);
+      stream.removeEventListener("removetrack", update);
+    };
+  }, [stream, muted]);
 
   return (
-    <video
-      playsInline
-      autoPlay
-      ref={userVideo}
-      style={{ border: "1px solid black", width: "100%" }}
-    />
+    <Box
+      position="relative"
+      borderRadius="md"
+      overflow="hidden"
+      bg="gray.100"
+      p={2}
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+    >
+      {!muted && <audio ref={audioRef} autoPlay />}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{
+          width: "100%",
+          borderRadius: 8,
+          display: hasVideo ? "block" : "none",
+        }}
+      />
+      {!hasVideo && <Avatar size="lg" name={name} my={4} />}
+      <Text fontSize="sm" mt={1}>
+        {name}
+      </Text>
+      {blocked && (
+        <Button
+          size="xs"
+          mt={1}
+          colorScheme="purple"
+          onClick={() => audioRef.current?.play().then(() => setBlocked(false))}
+        >
+          Tap to enable sound
+        </Button>
+      )}
+    </Box>
   );
 };
 
-const VoiceCallInterface: React.FC<VoiceCallInterfaceProps> = ({
+/**
+ * A component that displays a voice call interface.
+ * @param param0 The props for the component.
+ * @returns The rendered component.
+ */
+const VoiceCall: React.FC<VoiceCallProps> = ({
   roomId,
-  socketIO,
+  socket,
+  username,
+  withVideo = true,
+  onLeave,
 }) => {
-  const userVideo = useRef<HTMLVideoElement>(null);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [participants, setParticipants] = useState<{
-    [key: string]: MediaStream;
-  }>({});
-  const [peers, setpeers] = useState<Set<MediaStream>>(new Set());
-  const [peersMap, setPeersMap] = useState<Map<string, MediaStream>>(new Map());
-  const [connections, setConnections] = useState<{ [key: string]: any }>({});
-  const peerInstance = useRef<Peer | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  // @ts-ignore
-  const socketRef = useRef<Socket>(socketIO);
-  const username = useAppSelector(
-    (state: RootState) => state.auth.user?.username
-  );
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remotes, setRemotes] = useState<Map<string, Remote>>(new Map());
+  const [error, setError] = useState<string | null>(null);
 
+  // The main effect that handles the voice call logic
   useEffect(() => {
-    // Initialize PeerJS
-    if (!peerInstance.current) {
-      peerInstance.current = new Peer(undefined, {
-        host: "localhost",
-        port: 3000,
+    if (!socket) return;
+
+    let cancelled = false;
+    let peer: Peer | null = null;
+    let stream: MediaStream | null = null;
+    const calls = new Map<string, MediaConnection>(); // plain Map: no React state mutation
+
+    const removeRemote = (peerId: string) => {
+      calls.get(peerId)?.close();
+      calls.delete(peerId);
+      setRemotes((prev) => {
+        if (!prev.has(peerId)) return prev;
+        const next = new Map(prev);
+        next.delete(peerId);
+        return next;
+      });
+    };
+
+    const registerCall = (call: MediaConnection, name: string) => {
+      calls.set(call.peer, call); // call.peer = the REMOTE peer's id
+      call.on("stream", (remoteStream) =>
+        setRemotes((prev) =>
+          new Map(prev).set(call.peer, {
+            peerId: call.peer,
+            username: name,
+            stream: remoteStream,
+          }),
+        ),
+      );
+      call.on("close", () => removeRemote(call.peer));
+      call.on("error", () => removeRemote(call.peer));
+    };
+
+    // Existing members call whoever just joined
+    const onNewPeer = ({
+      peerId,
+      username: name,
+    }: {
+      peerId: string;
+      username: string;
+    }) => {
+      if (!peer || !stream) return;
+      registerCall(peer.call(peerId, stream, { metadata: { username } }), name);
+    };
+    const onPeerLeft = (peerId: string) => removeRemote(peerId);
+
+    (async () => {
+      try {
+        // 1) Get media FIRST so we can answer calls the moment we are in the room
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: withVideo,
+        });
+      } catch (e: any) {
+        setError(e?.message || "Could not access microphone/camera");
+        return;
+      }
+      if (cancelled) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      setLocalStream(stream);
+
+      // 2) Register handlers, 3) create peer, 4) only then join the room
+      socket.on("new-peer", onNewPeer);
+      socket.on("peer-disconnected", onPeerLeft);
+
+      const https = location.protocol === "https:";
+      peer = new Peer(undefined as any, {
+        // host: PEER_HOST,
+        // port: PEER_PORT,
+        // path: PEER_PATH,
+        host: location.hostname,
+        port: location.port ? Number(location.port) : https ? 443 : 80,
         path: "/peerjs",
-        debug: 2,
+        secure: https,
       });
-
-      peerInstance.current.on("open", (peerID) => {
-        console.log("Connected to PeerJS server with ID:", peerID);
-        // Join room or notify other peers
-        joinRoom(roomId, peerID);
+      peer.on("call", (call) => {
+        call.answer(stream!);
+        registerCall(call, call.metadata?.username ?? "Guest");
       });
-
-      peerInstance.current.on("disconnected", () => {
-        console.log("Disconnected from PeerJS server");
+      peer.on("open", (id) => {
+        if (!cancelled) socket.emit("join-room", roomId, id, username);
       });
-    }
-
-    // socket connection
-    if (!socketRef.current) {
-      socketRef.current = io("http://localhost:3000");
-
-      socketRef.current.on("connect", () => {
-        console.log("Connected to the server.");
-      });
-
-      // Handle disconnection event
-      socketRef.current.on("disconnect", () => {
-        console.log("Disconnected from the server");
-      });
-    }
-
-    // debugger;
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: false })
-      .then((stream) => {
-        if (userVideo.current) userVideo.current.srcObject = stream;
-        streamRef.current = stream;
-
-        // Listen for calls from new peers
-        console.log(peerInstance.current);
-
-        peerInstance.current &&
-          peerInstance.current.on("call", (call) => {
-            console.log(
-              "🚀 ~ peerInstance.current.on Answering Call ~ call:",
-              call,
-              call.metadata
-            );
-            call.answer(stream); // Answer the call with our stream
-            call.on("stream", (peerStream) => {
-              // Add their stream to the participants
-              setParticipants((p) => ({
-                ...p,
-                [call.metadata.peerId]: peerStream,
-              }));
-              setpeers((p) => new Set([...p, peerStream]));
-              console.log("🚀 ~ call.on ~ PeersMap:", call.metadata, peersMap);
-              setPeersMap((p) =>
-                new Map(p).set(call.metadata.peerId, peerStream)
-              );
-            });
-            setConnections((c) => {
-              c[call.metadata.peerId] = call;
-              return c;
-            });
-          });
-
-        socketRef.current.on("new-peer", (userId: string) => {
-          streamRef.current && connectToNewPeer(userId, streamRef.current);
-        });
-
-        socketRef.current.on("peer-disconnected", (peerId: any) => {
-          // Remove the peer stream when they disconnect
-          if (connections[peerId]) connections[peerId].close();
-        });
-      });
+      peer.on("error", (err) => setError(err.message));
+    })();
 
     return () => {
-      //   socketRef.current && socketRef.current.disconnect();
-      //   peerInstance.current && peerInstance.current.disconnect();
+      cancelled = true;
+      socket.emit("leave-room");
+      socket.off("new-peer", onNewPeer);
+      socket.off("peer-disconnected", onPeerLeft);
+      calls.forEach((c) => c.close());
+      calls.clear();
+      peer?.destroy();
+      stream?.getTracks().forEach((t) => t.stop());
+      setLocalStream(null);
+      setRemotes(new Map());
     };
-  }, [roomId]);
-
-  // Function to notify other peers
-  const joinRoom = (roomID: string, peerID: string) => {
-    socketRef.current.emit("join-room", roomID, peerID);
-    console.log(`Attempting to join${roomId}, peer ${peerID}`);
-  };
-
-  // Function to call new peers who just joined
-  const connectToNewPeer = (peerId: any, stream: MediaStream) => {
-    const options = {
-      metadata: { peerId },
-    };
-    const call = peerInstance.current!.call(peerId, stream, options);
-    console.log(
-      "🚀 ~ connectToNewPeer Stream to User ~ stream:",
-      peerId,
-      stream
-    );
-    call.on("stream", (userStream) => {
-      setParticipants((p) => ({ ...p, [peerId]: userStream }));
-      setpeers((p) => new Set([...p, userStream]));
-      console.log(
-        `🚀 ~ call.on ~ Before Setting${peerId} PeersMap: `,
-        peersMap
-      );
-      setPeersMap((p) => new Map(p).set(peerId, userStream));
-    });
-
-    call.on("close", () => {
-      console.log(`Connection closed ${peerId}`);
-      setParticipants((p) => {
-        delete p[peerId];
-        return p;
-      });
-
-      console.log(
-        `🚀 ~ setPeersMapBefore ${peerId} Deleted ~ PeersMap:`,
-        peersMap
-      );
-      setPeersMap((prev) => {
-        const newPeersMap = new Map(prev);
-        newPeersMap.delete(peerId);
-        return newPeersMap;
-      });
-
-      setpeers((p) => {
-        let pArr = [...p];
-        //@ts-ignore
-        p.pArr = pArr.reduceRight((acc, curr) => {
-          // remove dups
-          if (acc.length === 0) {
-            return [curr];
-          }
-          //@ts-ignore
-          if (acc[acc.length - 1].id === curr.id) {
-            return acc;
-          } else {
-            return [...acc, curr];
-          }
-        }, []);
-
-        return new Set(pArr);
-      });
-    });
-
-    setConnections((c) => {
-      c[peerId] = call;
-      return c;
-    });
-  };
-
-  useEffect(() => {
-    console.log("🚀 ~ peers:", peers, participants);
-    console.log("🚀 ~ peersMap:", peersMap);
-  }, [peers, peersMap, participants]);
+  }, [socket, roomId, username, withVideo]);
 
   return (
     <>
-      {isMinimized ? (
-        <Box
-          position="fixed"
-          bottom="20px"
-          right="20px"
-          bg="purple.500"
-          p={3}
-          rounded="full"
-          shadow="lg"
-          zIndex={1000}
-          cursor="pointer"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          width="60px"
-          height="60px"
-          onClick={() => setIsMinimized(false)}
-        >
-          <Tooltip label="Open Call Interface">
+      {/* The Minimized Call button: Checking if the call is minimized */}
+      {isMinimized && (
+        <Tooltip label="Open call">
+          <Box
+            position="fixed"
+            bottom="20px"
+            right="20px"
+            bg="purple.500"
+            rounded="full"
+            shadow="lg"
+            zIndex={1000}
+            cursor="pointer"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            width="60px"
+            height="60px"
+            onClick={() => setIsMinimized(false)}
+          >
             <FaPhone size="24px" color="white" />
-          </Tooltip>
-        </Box>
-      ) : (
-        <Box
-          position="fixed"
-          bottom="0"
-          right="0"
-          bg="white"
-          p={4}
-          borderRadius="md"
-          shadow="md"
-          zIndex={1000}
-          width="400px"
-          maxHeight="80vh"
-          overflow="auto"
-        >
-          <Stack spacing={4}>
-            <Flex alignItems="center" justifyContent="space-between">
-              <Text fontSize="lg" fontWeight="bold">
-                Call Interface
-              </Text>
-              <IconButton
-                aria-label="End Call"
-                icon={<FaTimes />}
-                onClick={() => console.log("End Call")}
-              />
-            </Flex>
-            <Box>
-              <video
-                muted
-                ref={userVideo}
-                autoPlay
-                playsInline
-                style={{ width: "100%", borderRadius: "8px" }}
-              />
-            </Box>
-            <Grid
-              templateColumns="repeat(auto-fill, minmax(150px, 1fr))"
-              gap={4}
-            >
-              {Array.from(peersMap).map(([_, peer], i) => (
-                <Box
-                  key={i + 1}
-                  borderRadius="md"
-                  overflow="hidden"
-                  bg="gray.100"
-                  p={2}
-                  display="flex"
-                  flexDirection="column"
-                  alignItems="center"
-                  position="relative"
-                >
-                  <Video peerStream={peer} />
-                  <Flex
-                    position="absolute"
-                    bottom="10px"
-                    left="10px"
-                    right="10px"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    bg="rgba(0, 0, 0, 0.5)"
-                    p={2}
-                    borderRadius="md"
-                  >
-                    <Avatar size="sm" />
-                    <Text color="white" ml={2}>
-                      {username}
-                      {/* <Text fontSize={"smaller"}>{peer[0]}</Text> */}
-                    </Text>
-                  </Flex>
-                </Box>
-              ))}
-            </Grid>
-            <Flex justifyContent="center">
-              <IconButton
-                aria-label="Minimize"
-                icon={<FaMinus />}
-                onClick={() => setIsMinimized(true)}
-              />
-            </Flex>
-          </Stack>
-        </Box>
+          </Box>
+        </Tooltip>
       )}
+
+      {/* The main call interface: Only shown when the call is not minimized */}
+      <Box
+        display={isMinimized ? "none" : "block"}
+        position="fixed"
+        bottom="0"
+        right="0"
+        bg="white"
+        p={4}
+        borderRadius="md"
+        shadow="md"
+        zIndex={1000}
+        width="400px"
+        maxHeight="80vh"
+        overflow="auto"
+      >
+        <Stack spacing={4}>
+          <Flex alignItems="center" justifyContent="space-between">
+            <Text fontSize="lg" fontWeight="bold">
+              Call
+            </Text>
+            <IconButton
+              aria-label="Leave call"
+              icon={<FaTimes />}
+              onClick={onLeave}
+            />
+          </Flex>
+
+          {/* Error message */}
+          {error && (
+            <Text color="red.500" fontSize="sm">
+              {error}
+            </Text>
+          )}
+
+          {/* The local stream tile */}
+          {localStream && (
+            <StreamTile
+              stream={localStream}
+              name={`${username} (you)`}
+              muted={true}
+            />
+          )}
+
+          {/* Remote streams */}
+          {remotes.size === 0 && (
+            <Text fontSize="sm" color="gray.500">
+              No one is in the call
+            </Text>
+          )}
+          <Grid templateColumns="repeat(auto-fill, minmax(150px, 1fr))" gap={4}>
+            {Array.from(remotes.values()).map((r) => (
+              <StreamTile key={r.peerId} stream={r.stream} name={r.username} />
+            ))}
+          </Grid>
+
+          {/* Minimize button */}
+          <Flex justifyContent="center">
+            <IconButton
+              aria-label="Minimize"
+              icon={<FaMinus />}
+              onClick={() => setIsMinimized(true)}
+            />
+          </Flex>
+        </Stack>
+      </Box>
     </>
   );
 };
 
-export default VoiceCallInterface;
+export default VoiceCall;

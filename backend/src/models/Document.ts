@@ -17,9 +17,9 @@ interface MediaFile {
 interface IDocument extends MongooseDocument {
   title: string;
   type?: string;
-  content: string;
+  content: any;
   created_by: mongoose.Types.ObjectId; // User who created the document
-  collaborators?: mongoose.Types.ObjectId[];
+  collaborators: mongoose.Types.ObjectId[];
   version_history?: VersionHistory[];
   media_files?: MediaFile[];
   local_file_path?: string;
@@ -41,8 +41,8 @@ const MediaFileSchema = new Schema<MediaFile>({
 
 const DocumentSchema = new Schema<IDocument>({
   title: { type: String, required: true },
-  type: { type: String, required: true },
-  content: { type: String, required: true },
+  type: { type: String, required: false },
+  content: { type: Object, required: true, default: "" },
   created_by: { type: Schema.Types.ObjectId, ref: "User", required: true }, // Link to user
   collaborators: { type: [Schema.Types.ObjectId], ref: "User", default: [] }, // Collaborators
   version_history: { type: [VersionHistorySchema], default: [] },

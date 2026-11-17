@@ -1,28 +1,93 @@
-import { Box, Grid, Text, Button, VStack, Icon, useClipboard } from "@chakra-ui/react";
+import { useEffect } from "react";
+import {
+  Box,
+  Grid,
+  Text,
+  Button,
+  VStack,
+  Icon,
+  useToast,
+  Spinner,
+} from "@chakra-ui/react";
 import { FaPlus } from "react-icons/fa";
 import DocumentCard from "../../components/DocumentCard";
 import { useNavigate } from "react-router-dom";
-import { v4 as uuidv4 } from "uuid"; // Use uuid to generate unique document IDs
-import { useState } from "react";
+import { useAppDispatch, useAppSelector } from "../../redux/hooks";
+import { fetchDocumentsThunk } from "../../redux/documents/recentDocs";
+import {
+  createDocumentThunk,
+  fetchDocumentThunk,
+} from "../../redux/documents/doc";
 
 const Documents = () => {
   const navigate = useNavigate();
-  const [documentId, setDocumentId] = useState<string | null>(null);
-  const { hasCopied, onCopy } = useClipboard(documentId || "");
+  const dispatch = useAppDispatch();
+  const toast = useToast();
 
-  const handleCreateNewDocument = () => {
-    const newDocumentId = uuidv4(); // Generate a unique document ID for collaboration
-    setDocumentId(newDocumentId); // Store it for the user to share
-    navigate(`/doc/${newDocumentId}`); // Redirect to the document editor
+  const { documents, isLoading, error } = useAppSelector(
+    (state) => state.documents,
+  );
+
+  useEffect(() => {
+    dispatch(fetchDocumentsThunk());
+  }, [dispatch]);
+
+  const handleCreateDocument = async () => {
+    try {
+      const resultAction = await dispatch(
+        createDocumentThunk("New Document"),
+      ).unwrap();
+      console.log("🚀 ~ handleCreateDocument ~ resultAction:", resultAction);
+      if (resultAction?.data?.document) {
+        const documentId = resultAction.data.document._id;
+        toast({
+          title: "Document created!",
+          description: `Document ${documentId} created successfully.`,
+          status: "success",
+          position: "bottom",
+          duration: 3000,
+          isClosable: true,
+        });
+        navigate(`/doc/${documentId}`);
+      }
+    } catch (err: any) {
+      toast({
+        title: "Failed to create document",
+        description: err || "Something went wrong",
+        status: "error",
+        position: "bottom",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleOpenDocument = async (id: string) => {
+    try {
+      await dispatch(fetchDocumentThunk(id)).unwrap();
+      navigate(`/doc/${id}`);
+    } catch (err: any) {
+      toast({
+        title: "Failed to open document",
+        description: err || "Could not fetch the document",
+        status: "error",
+        position: "bottom",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
   };
 
   return (
     <Box p={4}>
-      {/* Start New Document Section */}
       <Text fontSize="2xl" fontWeight="bold" mb={4}>
         Start New Document
       </Text>
-      <Grid templateColumns="repeat(auto-fit, minmax(150px, 1fr))" gap={6} mb={8}>
+      <Grid
+        templateColumns="repeat(auto-fit, minmax(150px, 1fr))"
+        gap={6}
+        mb={8}
+      >
         <VStack>
           <Button
             colorScheme="purple"
@@ -32,7 +97,8 @@ const Documents = () => {
             h={16}
             iconSpacing={0}
             aria-label="Create New Document"
-            onClick={handleCreateNewDocument}
+            onClick={handleCreateDocument}
+            isLoading={isLoading}
           >
             <Icon as={FaPlus} w={6} h={6} />
           </Button>
@@ -42,26 +108,32 @@ const Documents = () => {
         </VStack>
       </Grid>
 
-      {documentId && (
-        <VStack>
-          <Text>Your document ID is:</Text>
-          <Button onClick={onCopy}>
-            {hasCopied ? "Copied!" : documentId}
-          </Button>
-        </VStack>
-      )}
-
-      {/* Recent Documents Section */}
       <Text fontSize="2xl" fontWeight="bold" mb={4}>
         Recent Documents
       </Text>
-      <Grid templateColumns="repeat(auto-fit, minmax(150px, 1fr))" gap={6}>
-        <DocumentCard
-          title="Project Proposal"
-          lastUpdated="2 hours ago"
-          imageUrl="https://via.placeholder.com/150"
-        />
-      </Grid>
+      {isLoading ? (
+        <Spinner />
+      ) : error ? (
+        <Text color="red.500">{error}</Text>
+      ) : documents.length === 0 ? (
+        <Text>No documents available</Text>
+      ) : (
+        <Grid templateColumns="repeat(auto-fit, minmax(150px, 1fr))" gap={6}>
+          {documents.map((doc) => (
+            <Box
+              key={doc._id}
+              cursor="pointer"
+              onClick={() => handleOpenDocument(doc._id)}
+            >
+              <DocumentCard
+                title={doc.title}
+                lastUpdated={new Date(doc.updated_at).toLocaleString()}
+                contentPreview={doc.content}
+              />
+            </Box>
+          ))}
+        </Grid>
+      )}
     </Box>
   );
 };

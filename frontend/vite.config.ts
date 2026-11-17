@@ -54,14 +54,19 @@ export default defineConfig({
       ],
     },
   },
-  /*server: {
+  server: {
+    host: true,
+    allowedHosts: [".ngrok-free.app", ".ngrok-free.dev", ".ngrok.app"],
     proxy: {
-      "/socket.io": {
-        target: "http://localhost:3000",
-        changeOrigin: true,
+      "/api": "http://localhost:3000",
+      "/socket.io": { target: "http://localhost:3000", ws: true },
+      "/peerjs": { target: "http://localhost:9000", ws: true },
+      "/signaling": {
+        target: "http://localhost:4444",
         ws: true,
+        rewrite: (p) => p.replace(/^\/signaling/, ""),
       },
     },
-  },*/
+  },
   plugins: [react()],
 });

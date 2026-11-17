@@ -3,8 +3,9 @@ import cookies from "./cookies"; // Assuming you are using cookies-next or a sim
 
 // Create an Axios instance
 const axiosInstance = axios.create({
-  baseURL: `${import.meta.env.VITE_SERVER_URI}`,
+  baseURL: "/api/v1" || `${import.meta.env.VITE_SERVER_URI}`,
   timeout: 10000, // Set a timeout for requests
+  "ngrok-skip-browser-warning": "true",
   headers: {
     "Content-Type": "application/json",
   },
@@ -21,7 +22,7 @@ axiosInstance.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response Interceptor
@@ -48,7 +49,7 @@ axiosInstance.interceptors.response.use(
       console.error("Error:", error.message);
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default axiosInstance;
